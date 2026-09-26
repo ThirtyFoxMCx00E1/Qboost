@@ -1,5 +1,35 @@
 # Changelog
 
+## v10.011.01 (versionCode 22)
+
+**Splash**: the rocket mark and the QBOOST wordmark now sit closer together.
+
+**In-game panel**: removed the "Games" tab entirely — the panel is Gaming tools only now, no second
+page to switch to.
+
+**New gaming tools**, added where Qboost didn't already cover the same ground (refresh rate, information
+monitor, quick boost and touch enhancer were already covered by existing tiles, so those weren't repeated):
+- **Rotation Lock** and **Do Not Disturb** — real toggles, each guarded by the special permission Android
+  requires for it (Modify System Settings / Do Not Disturb access); the tile prompts for that the first
+  time, same as any app would have to.
+- **Lock Brightness** — locks the screen at its current brightness for as long as the panel's overlay is
+  up, using the overlay's own window, no special permission needed.
+- **Crosshair** — a small centered reticle overlay, toggled on/off.
+- **Show Taps** and **DNS Tuner** — open the matching Android settings screen (Developer Options /
+  network settings); there's no supported way for a normal app to flip either of these itself.
+- **Screenshot** — reuses the Upscaler/Frame gen screen-capture permission rather than asking a second
+  time; prompts to turn one of those on first if neither is active.
+- **Gyro Calibration** — shown for completeness, but honestly: no Android version gives apps a way to do
+  this, so the tile just says so rather than pretending to.
+
+**System Monitor restyled**: replaced the stacked FPS/CPU/GPU/RAM/MEM/TEMP box with one compact horizontal
+pill (matching the Genshin-style in-game FPS meter look) in blue instead of the old green/cyan/orange mix.
+
+**Library: grid view added**, switchable from the carousel via a new toggle button above the top-right
+corner of the library — a scrollable, GameHub-PC-style poster grid using new portrait cover art for all 19
+games. Applies to both the Library and Favorites tabs; Super Base is unchanged. The choice resets to the
+carousel each time the app restarts (it isn't saved yet).
+
 ## v9.4 (versionCode 21)
 
 **Package name changed to `com.qboost.hub`** (was `com.aistudio.qboost.gmpk`). Heads up: Android treats a

@@ -37,4 +37,36 @@ object LibraryArt {
             else -> null
         }
     }
+
+    /**
+     * Portrait cover art for the grid library view (res/drawable-nodpi/grid_*) — same matching rules
+     * as [forGame], just pointing at the taller box-art images instead of the landscape banners.
+     */
+    @DrawableRes
+    fun forGameGrid(game: GameItem): Int? {
+        val name = game.name.trim().lowercase()
+        val key = "$name ${game.packageName.lowercase()}"
+        return when {
+            "minecraft" in key -> R.drawable.grid_minecraft
+            "wuthering" in key -> R.drawable.grid_wuthering_waves
+            "genshin" in key -> R.drawable.grid_genshin_impact
+            "pubg" in key || "battlegrounds" in key || "tencent.ig" in key -> R.drawable.grid_pubg_mobile
+            "clash of clans" in key || "clashofclans" in key -> R.drawable.grid_clash_of_clans
+            "call of duty" in key || "callofduty" in key -> R.drawable.grid_cod_mobile
+            "devil may cry" in key -> R.drawable.grid_devil_may_cry
+            "dolphin" in key -> R.drawable.grid_dolphin
+            "worms" in key -> R.drawable.grid_worms4
+            "little nightmares" in key -> R.drawable.grid_little_nightmares
+            "blood strike" in key || "newspike" in key -> R.drawable.grid_blood_strike
+            "asphalt" in key -> R.drawable.grid_asphalt8
+            "dysmantle" in key -> R.drawable.grid_dysmantle
+            "getting over it" in key || "gettingoverit" in key -> R.drawable.grid_getting_over_it
+            "human: fall flat" in key || "humanfallflat" in key -> R.drawable.grid_human_fall_flat
+            "oceanhorn" in key -> R.drawable.grid_oceanhorn
+            "san andreas" in key || "gtasa" in key || name.startsWith("gta") -> R.drawable.grid_gta_san_andreas
+            "roblox" in key -> R.drawable.grid_roblox
+            "tgc.sky" in key || name == "sky" || "children of the light" in key -> R.drawable.grid_sky
+            else -> null
+        }
+    }
 }

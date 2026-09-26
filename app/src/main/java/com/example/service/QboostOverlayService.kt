@@ -20,6 +20,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -57,7 +58,6 @@ import com.example.i18n.I18n
 import com.example.model.PerformanceStats
 import com.example.settings.AppSettings
 import com.example.settings.SettingsStore
-import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -126,10 +126,7 @@ class QboostOverlayService : Service() {
 
     // ---- panel widgets ----
     private var toolsPage: ScrollView? = null
-    private var gamesPage: ScrollView? = null
-    private var gamesList: LinearLayout? = null
     private var tabTools: TextView? = null
-    private var tabGames: TextView? = null
     private var gauge: GaugeView? = null
     private var cpuValueText: TextView? = null
     private var cpuBar: ProgressBar? = null
@@ -147,10 +144,18 @@ class QboostOverlayService : Service() {
     private var upscalerTile: TextView? = null
     private var frameGenTile: TextView? = null
     private var hapticsTile: TextView? = null
+    private var rotationLockTile: TextView? = null
+    private var dndTile: TextView? = null
+    private var brightnessLockTile: TextView? = null
+    private var crosshairTile: TextView? = null
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
 
     // ---- toggles ----
     private var isHapticsOn = true
+    private var isRotationLockOn = false
+    private var isDndOn = false
+    private var isBrightnessLockOn = false
+    private var crosshairWindow: View? = null
 
     // ---- floating apps (multitasking windows over the game) ----
     private var floatingApps: FloatingAppWindows? = null
@@ -475,7 +480,6 @@ class QboostOverlayService : Service() {
             isOverlayAttached = true
             isPanelOpen = false
 
-            selectTab(0)
             updateSaturationUi()
             updateModeButtons()
             startTelemetryLoop()
@@ -647,15 +651,14 @@ class QboostOverlayService : Service() {
         )
         card.layoutParams = LinearLayout.LayoutParams(dp(PANEL_WIDTH_DP), ViewGroup.LayoutParams.MATCH_PARENT)
 
-        // ---- tabs: Gaming tools | Games | x ----
+        // ---- header: "Gaming tools" title, x ----
         val tabs = LinearLayout(this)
         tabs.orientation = LinearLayout.HORIZONTAL
         tabs.gravity = Gravity.CENTER_VERTICAL
         tabs.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42))
-        val tools = tabLabel(s("p_tools")) { selectTab(0) }
-        val games = tabLabel(s("p_games")) { selectTab(1) }
+        val tools = tabLabel(s("p_tools")) {}
         tabTools = tools
-        tabGames = games
+        styleTab(tools, selected = true)
         val close = label("×", 22f, C_GRAY)
         close.gravity = Gravity.CENTER
         close.setPadding(dp(12), 0, dp(14), 0)
@@ -664,19 +667,15 @@ class QboostOverlayService : Service() {
             setPanelExpanded(false)
         }
         tabs.addView(tools)
-        tabs.addView(games)
         tabs.addView(close)
         card.addView(tabs)
 
-        // ---- pages ----
+        // ---- page ----
         val pages = FrameLayout(this)
         pages.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         val toolsScroll = buildToolsPage()
-        val gamesScroll = buildGamesPage()
         toolsPage = toolsScroll
-        gamesPage = gamesScroll
         pages.addView(toolsScroll)
-        pages.addView(gamesScroll)
         card.addView(pages)
         return card
     }
@@ -694,15 +693,6 @@ class QboostOverlayService : Service() {
             onClick()
         }
         return tab
-    }
-
-    private fun selectTab(index: Int) {
-        val toolsSelected = index == 0
-        styleTab(tabTools, toolsSelected)
-        styleTab(tabGames, !toolsSelected)
-        toolsPage?.visibility = if (toolsSelected) View.VISIBLE else View.GONE
-        gamesPage?.visibility = if (toolsSelected) View.GONE else View.VISIBLE
-        if (!toolsSelected) refreshGamesPage()
     }
 
     private fun styleTab(tab: TextView?, selected: Boolean) {
@@ -811,6 +801,28 @@ class QboostOverlayService : Service() {
                     stopFloatingOverlay()
                     stopSelf()
                 }
+            )
+        )
+
+        // Everything below is new: only tools Qboost didn't already cover in the two rows above
+        // (refresh rate is the Hz gauge, "information monitor" is the System monitor tile, "quick
+        // boost" is the Qboost tile, and "touch enhancer" is already a per-game setting) so none of
+        // those are repeated here.
+        val rotationLock = toolTile(s("tool_rotation_lock"), active = isRotationLockOn) { toggleRotationLock() }
+        val dnd = toolTile(s("tool_dnd"), active = isDndOn) { toggleDoNotDisturb() }
+        val brightnessLock = toolTile(s("tool_brightness_lock"), active = isBrightnessLockOn) { toggleBrightnessLock() }
+        val crosshair = toolTile(s("tool_crosshair"), active = crosshairWindow != null) { toggleCrosshair() }
+        rotationLockTile = rotationLock
+        dndTile = dnd
+        brightnessLockTile = brightnessLock
+        crosshairTile = crosshair
+        column.addView(toolRow(rotationLock, dnd, brightnessLock, crosshair))
+        column.addView(
+            toolRow(
+                toolTile(s("tool_show_taps")) { openSystemScreen(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS) },
+                toolTile(s("tool_dns")) { openPrivateDnsSettings() },
+                toolTile(s("tool_screenshot")) { showScreenshotInfo() },
+                toolTile(s("tool_gyro")) { showGyroCalibrationInfo() }
             )
         )
 
@@ -1000,75 +1012,6 @@ class QboostOverlayService : Service() {
 
     // ---------------- Games page ----------------
 
-    private fun buildGamesPage(): ScrollView {
-        val scroll = ScrollView(this)
-        scroll.isVerticalScrollBarEnabled = false
-        scroll.layoutParams = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
-        val list = LinearLayout(this)
-        list.orientation = LinearLayout.VERTICAL
-        list.setPadding(dp(12), dp(4), dp(12), dp(12))
-        gamesList = list
-        scroll.addView(list)
-        return scroll
-    }
-
-    /** Installed games from the Qboost library, read from the saved list. */
-    private fun readSavedGames(): List<Pair<String, String>> {
-        val json = getSharedPreferences(SettingsStore.prefsName(), Context.MODE_PRIVATE)
-            .getString("saved_games_json", null) ?: return emptyList()
-        val result = ArrayList<Pair<String, String>>()
-        try {
-            val array = JSONArray(json)
-            for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                val pkg = obj.optString("packageName", "")
-                val name = obj.optString("name", pkg)
-                if (pkg.isNotBlank() && packageManager.getLaunchIntentForPackage(pkg) != null) {
-                    result.add(Pair(name, pkg))
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return result
-    }
-
-    private fun refreshGamesPage() {
-        val list = gamesList ?: return
-        list.removeAllViews()
-        val games = readSavedGames()
-        if (games.isEmpty()) {
-            list.addView(label(s("no_games"), 12f, C_GRAY))
-            return
-        }
-        games.forEach { (name, pkg) ->
-            val row = TextView(this)
-            row.text = name
-            row.setTextColor(if (pkg == activeGamePackage) Color.WHITE else C_TEXT)
-            row.textSize = 13f
-            row.typeface = Typeface.DEFAULT_BOLD
-            row.maxLines = 1
-            row.ellipsize = TextUtils.TruncateAt.END
-            row.gravity = Gravity.CENTER_VERTICAL
-            row.setPadding(dp(14), 0, dp(14), 0)
-            if (pkg == activeGamePackage) {
-                row.background = gradient(C_BLUE, C_BLUE_DARK, radiusDp = 14)
-            } else {
-                row.background = gradient(Color.parseColor("#CC2A3552"), Color.parseColor("#CC1B2438"), radiusDp = 14)
-            }
-            val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46))
-            lp.bottomMargin = dp(6)
-            row.layoutParams = lp
-            row.setOnClickListener {
-                UiSounds.play()
-                if (launchPackage(pkg)) setPanelExpanded(false)
-            }
-            list.addView(row)
-        }
-    }
-
     // ---------------- open / close ----------------
 
     /** Panel and dock backgrounds follow the "Panel opacity" setting. */
@@ -1137,6 +1080,168 @@ class QboostOverlayService : Service() {
         } catch (_: Exception) {
             Toast.makeText(this, "Not available on this phone", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** Auto-rotate is a per-device setting, not a permission — this needs Settings.canWrite() first. */
+    private fun toggleRotationLock() {
+        if (!Settings.System.canWrite(this)) {
+            Toast.makeText(this, "Allow Qboost to modify system settings, then try again", Toast.LENGTH_LONG).show()
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Exception) {
+            }
+            return
+        }
+        isRotationLockOn = !isRotationLockOn
+        try {
+            // Locked = auto-rotate OFF (value 0); un-locked hands rotation back to the accelerometer (1).
+            Settings.System.putInt(
+                contentResolver,
+                Settings.System.ACCELEROMETER_ROTATION,
+                if (isRotationLockOn) 0 else 1
+            )
+        } catch (_: Exception) {
+        }
+        rotationLockTile?.let { styleTile(it, isRotationLockOn) }
+    }
+
+    /** Silencing notifications needs the special "Do Not Disturb access" grant, not a manifest permission. */
+    private fun toggleDoNotDisturb() {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (nm == null || !nm.isNotificationPolicyAccessGranted) {
+            Toast.makeText(this, "Allow Qboost to control Do Not Disturb, then try again", Toast.LENGTH_LONG).show()
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Exception) {
+            }
+            return
+        }
+        isDndOn = !isDndOn
+        try {
+            nm.setInterruptionFilter(
+                if (isDndOn) NotificationManager.INTERRUPTION_FILTER_NONE
+                else NotificationManager.INTERRUPTION_FILTER_ALL
+            )
+        } catch (_: Exception) {
+        }
+        dndTile?.let { styleTile(it, isDndOn) }
+    }
+
+    /**
+     * Locks the screen at its current brightness for as long as the overlay window is up, by setting
+     * that brightness directly on Qboost's own overlay window — a floating window's `screenBrightness`
+     * overrides the physical backlight system-wide while it's showing, no special permission needed since
+     * it's only ever touching a window Qboost itself owns. -1 hands control back to the system.
+     */
+    private fun toggleBrightnessLock() {
+        val params = overlayParams ?: return
+        isBrightnessLockOn = !isBrightnessLockOn
+        params.screenBrightness = if (isBrightnessLockOn) {
+            try {
+                Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS)
+                    .coerceIn(0, 255) / 255f
+            } catch (_: Exception) {
+                -1f
+            }
+        } else {
+            WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        }
+        overlayRoot?.let { windowManager?.updateViewLayout(it, params) }
+        brightnessLockTile?.let { styleTile(it, isBrightnessLockOn) }
+    }
+
+    /** A small always-on-top reticle, centered on screen, in its own tiny overlay window. */
+    private fun toggleCrosshair() {
+        val wm = windowManager ?: return
+        val existing = crosshairWindow
+        if (existing != null) {
+            try {
+                wm.removeView(existing)
+            } catch (_: Exception) {
+            }
+            crosshairWindow = null
+            crosshairTile?.let { styleTile(it, false) }
+            return
+        }
+        val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val size = dp(28)
+        val crosshairParams = WindowManager.LayoutParams(
+            size,
+            size,
+            layoutFlag,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.CENTER }
+        val view = View(this)
+        view.background = object : android.graphics.drawable.Drawable() {
+            private val paint = android.graphics.Paint().apply {
+                color = Color.parseColor("#E6FFFFFF")
+                strokeWidth = dp(2).toFloat()
+            }
+            override fun draw(canvas: android.graphics.Canvas) {
+                val w = bounds.width().toFloat()
+                val h = bounds.height().toFloat()
+                canvas.drawLine(w / 2f, 0f, w / 2f, h, paint)
+                canvas.drawLine(0f, h / 2f, w, h / 2f, paint)
+            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
+            @Suppress("DEPRECATION")
+            override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+        }
+        try {
+            wm.addView(view, crosshairParams)
+            crosshairWindow = view
+        } catch (_: Exception) {
+        }
+        crosshairTile?.let { styleTile(it, crosshairWindow != null) }
+    }
+
+    private fun openPrivateDnsSettings() {
+        try {
+            startActivity(
+                Intent("android.settings.PRIVATE_DNS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            setPanelExpanded(false)
+        } catch (_: Exception) {
+            // Not every OEM skin ships that exact screen; the network settings page always exists.
+            openSystemScreen(Settings.ACTION_WIRELESS_SETTINGS)
+        }
+    }
+
+    /**
+     * A real screenshot needs MediaProjection consent, which Qboost only asks for when Upscaler/Frame
+     * gen is turned on — reusing that instead of asking a second time for a whole separate feature.
+     */
+    private fun showScreenshotInfo() {
+        val message = if (ScalerService.upscalerOn || ScalerService.frameGenOn) {
+            "Screenshot capture from here is coming soon"
+        } else {
+            "Turn on Upscaler or Frame gen first — Screenshot reuses that same screen-capture permission"
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    /** No Android version exposes a public API for this; it's a device-firmware-level calibration. */
+    private fun showGyroCalibrationInfo() {
+        Toast.makeText(
+            this,
+            "Not something an app can do on most phones — check your device's own Settings app for a gyroscope calibration option",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     private fun openQboost() {
@@ -1228,10 +1333,7 @@ class QboostOverlayService : Service() {
         dockCard = null
         mainCard = null
         toolsPage = null
-        gamesPage = null
-        gamesList = null
         tabTools = null
-        tabGames = null
         gauge = null
         cpuValueText = null
         cpuBar = null
@@ -1424,72 +1526,65 @@ class QboostOverlayService : Service() {
             }
 
             val root = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                val bg = GradientDrawable().apply {
-                    setColor(Color.parseColor("#E6101828"))
-                    cornerRadius = 12 * density
-                }
-                background = bg
-                setPadding((10 * density).toInt(), (6 * density).toInt(), (10 * density).toInt(), (8 * density).toInt())
-            }
-
-            // Header: title + close
-            val header = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 0, 0, (3 * density).toInt())
+                val bg = GradientDrawable().apply {
+                    setColor(Color.parseColor("#E60D1826"))
+                    cornerRadius = 20 * density
+                }
+                background = bg
+                setPadding((12 * density).toInt(), (6 * density).toInt(), (8 * density).toInt(), (6 * density).toInt())
             }
-            val title = TextView(this).apply {
-                text = "QBOOST MONITOR"
-                setTextColor(Color.parseColor("#00E5FF"))
-                textSize = 9.5f
-                typeface = Typeface.DEFAULT_BOLD
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+            val monitorBlueLabel = Color.parseColor("#7FB4FF")
+            val monitorBlueValue = Color.parseColor("#4FC3F7")
+
+            monitorHudValues.clear()
+            fun addStat(key: String, label: String, isFirst: Boolean = false) {
+                val stat = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.marginStart = if (isFirst) 0 else (10 * density).toInt()
+                    layoutParams = lp
+                }
+                val labelView = TextView(this).apply {
+                    text = label
+                    setTextColor(monitorBlueLabel)
+                    textSize = 10f
+                    typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                }
+                val valueView = TextView(this).apply {
+                    text = "--"
+                    setTextColor(monitorBlueValue)
+                    textSize = 11f
+                    typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                    setPadding((3 * density).toInt(), 0, 0, 0)
+                }
+                stat.addView(labelView)
+                stat.addView(valueView)
+                root.addView(stat)
+                monitorHudValues[key] = valueView
             }
+            addStat("fps", "FPS", isFirst = true)
+            addStat("gpu", "GPU")
+            addStat("cpu", "CPU")
+            addStat("ram", "RAM")
+            addStat("mem", "MEM")
+            addStat("temp", "TEMP")
+
             val closeView = TextView(this).apply {
-                text = "  ×"
+                text = "×"
                 setTextColor(Color.parseColor("#FF5252"))
-                textSize = 13f
+                textSize = 14f
                 typeface = Typeface.DEFAULT_BOLD
+                setPadding((10 * density).toInt(), 0, 0, 0)
                 setOnClickListener {
                     UiSounds.play()
                     hideSystemMonitorHud()
                 }
             }
-            header.addView(title)
-            header.addView(closeView)
-            root.addView(header)
-
-            monitorHudValues.clear()
-            fun addRow(key: String, label: String, labelColor: Int) {
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(0, (1 * density).toInt(), 0, (1 * density).toInt())
-                }
-                val labelView = TextView(this).apply {
-                    text = label
-                    setTextColor(labelColor)
-                    textSize = 10f
-                    typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-                    layoutParams = LinearLayout.LayoutParams((40 * density).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
-                }
-                val valueView = TextView(this).apply {
-                    text = "--"
-                    setTextColor(Color.WHITE)
-                    textSize = 10.5f
-                    typeface = Typeface.MONOSPACE
-                }
-                row.addView(labelView)
-                row.addView(valueView)
-                root.addView(row)
-                monitorHudValues[key] = valueView
-            }
-            addRow("fps", "FPS", Color.parseColor("#00E676"))
-            addRow("cpu", "CPU", Color.parseColor("#00E5FF"))
-            addRow("gpu", "GPU", Color.parseColor("#2F80FF"))
-            addRow("ram", "RAM", Color.parseColor("#5C8DFF"))
-            addRow("mem", "MEM", Color.parseColor("#FFAB00"))
-            addRow("temp", "TEMP", Color.parseColor("#FFA726"))
+            root.addView(closeView)
 
             // Drag the whole monitor anywhere on the screen
             root.setOnTouchListener(object : View.OnTouchListener {
@@ -1597,6 +1692,13 @@ class QboostOverlayService : Service() {
         hideSystemMonitorHud()
         floatingApps?.closeAll()
         ScalerService.instance?.stopScaler()
+        crosshairWindow?.let { view ->
+            try {
+                windowManager?.removeView(view)
+            } catch (_: Exception) {
+            }
+        }
+        crosshairWindow = null
         detachOverlay()
     }
 

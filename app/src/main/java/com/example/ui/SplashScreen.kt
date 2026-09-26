@@ -90,7 +90,7 @@ fun SplashScreen(onFinished: () -> Unit) {
                         rotationZ = rotation.value
                     }
             )
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Box(
                 modifier = Modifier.graphicsLayer {
                     alpha = textAlpha.value

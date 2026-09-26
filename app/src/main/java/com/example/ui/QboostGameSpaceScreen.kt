@@ -10,6 +10,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,6 +27,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -49,6 +53,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -62,6 +67,7 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -73,6 +79,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
@@ -199,6 +206,8 @@ fun QboostGameSpaceScreen(
     modifier: Modifier = Modifier
 ) {
     var activeTab by remember { mutableStateOf(GameSpaceTab.LIBRARY) }
+    // 0 = the normal horizontal carousel, 1 = the scrollable poster grid
+    var libraryViewMode by remember { mutableIntStateOf(0) }
     // Order the physical LB/RB buttons (and their on-screen badges) actually cycle through — matches the
     // left-to-right order of the tab labels themselves, so RB always lands on the tab visually to the right.
     val tabOrder = remember { listOf(GameSpaceTab.LIBRARY, GameSpaceTab.SUPER_BASE, GameSpaceTab.FAVORITES) }
@@ -336,38 +345,59 @@ fun QboostGameSpaceScreen(
                     .fillMaxWidth()
             ) {
                 if (activeTab == GameSpaceTab.LIBRARY) {
-                    LibraryContent(
-                        visibleGames = visibleGames,
-                        selectedGame = selectedGame,
-                        beatIntensity = if (isMusicMuted) 0f else beatIntensity,
-                        showControllerHints = showControllerHints,
-                        onSelectGame = onSelectGame,
-                        onStartGame = onStartGame,
-                        onAddGame = { isAddGameDialogOpen = true },
-                        onOpenSaturation = { isSaturationDialogOpen = true },
-                        onViewDetails = { onViewDetails(selectedGame) },
-                        onRemoveGame = onRemoveGame,
-                        onToggleFavorite = { game -> onSaveGameSettings(game.copy(isFavorite = !game.isFavorite)) },
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (libraryViewMode == 0) {
+                        LibraryContent(
+                            visibleGames = visibleGames,
+                            selectedGame = selectedGame,
+                            beatIntensity = if (isMusicMuted) 0f else beatIntensity,
+                            showControllerHints = showControllerHints,
+                            onSelectGame = onSelectGame,
+                            onStartGame = onStartGame,
+                            onAddGame = { isAddGameDialogOpen = true },
+                            onOpenSaturation = { isSaturationDialogOpen = true },
+                            onViewDetails = { onViewDetails(selectedGame) },
+                            onRemoveGame = onRemoveGame,
+                            onToggleFavorite = { game -> onSaveGameSettings(game.copy(isFavorite = !game.isFavorite)) },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        LibraryGrid(
+                            visibleGames = visibleGames,
+                            selectedGame = selectedGame,
+                            onSelectGame = onSelectGame,
+                            onStartGame = onStartGame,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 } else if (activeTab == GameSpaceTab.FAVORITES) {
                     val favoriteGames = remember(games) { games.filter { it.isFavorite } }
-                    LibraryContent(
-                        visibleGames = favoriteGames,
-                        selectedGame = selectedGame,
-                        beatIntensity = if (isMusicMuted) 0f else beatIntensity,
-                        showControllerHints = showControllerHints,
-                        onSelectGame = onSelectGame,
-                        onStartGame = onStartGame,
-                        onAddGame = { isAddGameDialogOpen = true },
-                        onOpenSaturation = { isSaturationDialogOpen = true },
-                        onViewDetails = { onViewDetails(selectedGame) },
-                        onRemoveGame = onRemoveGame,
-                        onToggleFavorite = { game -> onSaveGameSettings(game.copy(isFavorite = !game.isFavorite)) },
-                        emptyMessage = tr("no_favorite_games"),
-                        showAddTile = false,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (libraryViewMode == 0) {
+                        LibraryContent(
+                            visibleGames = favoriteGames,
+                            selectedGame = selectedGame,
+                            beatIntensity = if (isMusicMuted) 0f else beatIntensity,
+                            showControllerHints = showControllerHints,
+                            onSelectGame = onSelectGame,
+                            onStartGame = onStartGame,
+                            onAddGame = { isAddGameDialogOpen = true },
+                            onOpenSaturation = { isSaturationDialogOpen = true },
+                            onViewDetails = { onViewDetails(selectedGame) },
+                            onRemoveGame = onRemoveGame,
+                            onToggleFavorite = { game -> onSaveGameSettings(game.copy(isFavorite = !game.isFavorite)) },
+                            emptyMessage = tr("no_favorite_games"),
+                            showAddTile = false,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        LibraryGrid(
+                            visibleGames = favoriteGames,
+                            selectedGame = selectedGame,
+                            onSelectGame = onSelectGame,
+                            onStartGame = onStartGame,
+                            emptyMessage = tr("no_favorite_games"),
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 } else {
                     SuperBaseScreen(
                         stats = stats,
@@ -377,6 +407,16 @@ fun QboostGameSpaceScreen(
                         onOpenAppInfo = onOpenAppInfo,
                         onOpenOverlaySettings = onRequestOverlayPermission,
                         modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                if (activeTab == GameSpaceTab.LIBRARY || activeTab == GameSpaceTab.FAVORITES) {
+                    LibraryViewToggle(
+                        isGrid = libraryViewMode == 1,
+                        onToggle = { libraryViewMode = if (libraryViewMode == 0) 1 else 0 },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 4.dp, end = 12.dp)
                     )
                 }
             }
@@ -1014,6 +1054,108 @@ private fun MainMenu(
 // ============================================================================================
 
 @Composable
+/** Small "==" (carousel) / "grid" switcher, styled like the GameHub PC reference. */
+@Composable
+private fun LibraryViewToggle(isGrid: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xCC1B2438))
+            .qClickable(onClick = onToggle),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (isGrid) Icons.Default.ViewCarousel else Icons.Default.GridView,
+            contentDescription = tr("library_view_toggle"),
+            tint = TextWhite,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+/**
+ * The GameHub-PC-style scrollable poster grid: a dense, multi-column grid of portrait cover art,
+ * switched to from the carousel via [LibraryViewToggle].
+ */
+@Composable
+private fun LibraryGrid(
+    visibleGames: List<GameItem>,
+    selectedGame: GameItem,
+    onSelectGame: (GameItem) -> Unit,
+    onStartGame: (GameItem) -> Unit,
+    emptyMessage: String? = null,
+    modifier: Modifier = Modifier
+) {
+    if (visibleGames.isEmpty()) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text(text = emptyMessage ?: tr("no_games_match"), color = TextGray, fontSize = 13.sp)
+        }
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 100.dp),
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        gridItems(visibleGames, key = { it.id }) { game ->
+            val isSelected = game.id == selectedGame.id
+            val art = LibraryArt.forGameGrid(game) ?: LibraryArt.forGame(game)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .qClickable {
+                        if (isSelected) onStartGame(game) else onSelectGame(game)
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f / 3f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF1B2438))
+                        .then(
+                            if (isSelected) {
+                                Modifier.border(2.dp, QboostBlueGlow, RoundedCornerShape(10.dp))
+                            } else {
+                                Modifier
+                            }
+                        )
+                ) {
+                    if (art != null) {
+                        Image(
+                            painter = painterResource(id = art),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = game.initials,
+                                color = TextWhite,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = game.name,
+                    color = if (isSelected) TextWhite else TextGray,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+
 private fun LibraryContent(
     visibleGames: List<GameItem>,
     selectedGame: GameItem,

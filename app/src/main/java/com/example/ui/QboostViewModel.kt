@@ -249,7 +249,7 @@ class QboostViewModel(application: Application) : AndroidViewModel(application) 
                 startSystemOverlayService(game.name, game.packageName, applySaturation = true)
             }
 
-            _launchToast.value = "⚡ QBOOST v9.4: Turbo Boosted! Launching ${game.name}..."
+            _launchToast.value = "⚡ QBOOST v10.011.01: Turbo Boosted! Launching ${game.name}..."
             app.startActivity(launchIntent)
             musicManager.pause()
         }

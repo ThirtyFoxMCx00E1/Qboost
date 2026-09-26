@@ -129,3 +129,12 @@ details_video_failed	Couldn't play the video here	No se pudo reproducir aquí	�
 details_open_externally	Open video	Abrir vídeo	動画を開く	Ouvrir la vidéo	فتح الفيديو	동영상 열기	打开视频	Abrir vídeo	Video öffnen	Открыть видео	वीडियो खोलें	Buka video	Videoyu aç
 controller_status	Controller connected											
 network_status	Online											
+tool_rotation_lock	Rotation Lock											
+tool_dnd	Do Not Disturb											
+tool_brightness_lock	Lock Brightness											
+tool_crosshair	Crosshair											
+tool_show_taps	Show Taps											
+tool_dns	DNS Tuner											
+tool_screenshot	Screenshot											
+tool_gyro	Gyro Calibration											
+library_view_toggle	Switch library view											

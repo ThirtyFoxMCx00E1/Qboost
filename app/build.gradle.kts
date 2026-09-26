@@ -45,8 +45,8 @@ android {
     applicationId = "com.qboost.hub"
     minSdk = 24
     targetSdk = 36
-    versionCode = 21
-    versionName = "9.4"
+    versionCode = 22
+    versionName = "10.011.01"
 
     ndk {
       abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
