@@ -1053,7 +1053,6 @@ private fun MainMenu(
 //  Library: tile row + selected game info
 // ============================================================================================
 
-@Composable
 /** Small "==" (carousel) / "grid" switcher, styled like the GameHub PC reference. */
 @Composable
 private fun LibraryViewToggle(isGrid: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
@@ -1156,6 +1155,7 @@ private fun LibraryGrid(
     }
 }
 
+@Composable
 private fun LibraryContent(
     visibleGames: List<GameItem>,
     selectedGame: GameItem,
